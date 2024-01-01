@@ -1,6 +1,7 @@
 # data_processor.py is to prepare data chunks to compress
 import datasets
 import numpy as np
+import os
 
 class BaseProcessor:
     def __init__(self, name, modality, load_path, cache_path, tokenizer, total_size=2**24, chunk_size=2**11):
@@ -16,8 +17,10 @@ class BaseProcessor:
         self.modality = modality
         self.load_path = load_path
         self.cache_path = cache_path
-        self.tokenizer = tokenizer
+        if not os.path.exists(self.cache_path):
+            os.makedirs(self.cache_path)
 
+        self.tokenizer = tokenizer
         self.total_size = total_size
 
         self.chunk_size = chunk_size
@@ -181,3 +184,12 @@ class BBCImageProcessor(MultiModalProcessor):
         patch_array = np.array(patch_gray).flatten().tolist()
 
         return patch_array
+
+class WikiTextProcessor(TextProcessor):
+    def _load_dataset(self):
+        ds = datasets.load_dataset(self.load_path, self.config, split='train')
+        all_text = ''
+        for article in ds:
+            text = article['text']
+            all_text += text
+        self.all_text = all_text
