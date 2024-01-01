@@ -66,6 +66,8 @@ def flac_compressor(byte_stream, save_path = None):
     sample_rate = 16000
     if save_path is None:
         save_path = 'compressed.flac'
+    else:
+        save_path = save_path + '.flac'
     sf.write(save_path, pesudo_audio, sample_rate)
     compressed_size = os.path.getsize(save_path)
     return compressed_size
