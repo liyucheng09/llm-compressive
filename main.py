@@ -30,7 +30,7 @@ model_max_context = {
 }
 
 def prepare_data(data_name, save_path, tokenizer):
-    all_time_stamps = [f'{year}-{month:02d}' for year in range(2017, 2024) for month in range(1, 13)]
+    all_time_stamps = [f'{year}-{month:02d}' for year in range(2017, 2024) for month in range(1, 12)]
     if data_name == 'bbc_news':
         data_path = 'RealTimeData/bbc_news_alltime'
         modality = 'text'
@@ -44,9 +44,6 @@ def prepare_data(data_name, save_path, tokenizer):
         modality = 'image'
         processor = BBCImageProcessor
 
-    if 'qwen' in tokenizer.name_or_path and modality != 'text':
-        raise ValueError(f'qwen tokenizer only supports text modality, but {modality} is given.')
-    
     all_data = [
         processor(
             name = data_name,
@@ -65,8 +62,10 @@ def load_model_and_tokenizer(model_name):
 
     if 'chatglm' in model_name.lower():
         model = AutoModel.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
-    elif 'llama' in model_name.lower() or 'gptq' in model_name.lower():
-        model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', trust_remote_code=True)
+    elif 'llama' in model_name.lower() or 'Yi-34B' in model_name:
+        model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
+    elif 'yi' in model_name.lower():
+        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
     else:
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
 
@@ -86,6 +85,9 @@ if __name__ == '__main__':
     if getattr(model.config, 'quantization_config', None) is not None and model.config.quantization_config.use_exllama and model.config.quantization_config.desc_act:
         model = exllama_set_max_input_length(model, context_size*batch_size)
     all_data, modality = prepare_data(data_name, save_path, tokenizer)
+
+    if 'qwen' in model_name.lower() and modality != 'text':
+        raise ValueError('Qwen do not support byte tokenization. So text data only.')
 
     for data in all_data:
         name, time = data.name, data.config

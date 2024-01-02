@@ -237,7 +237,7 @@ class BBCImageProcessor(MultiModalProcessor):
     def _load_dataset(self):
         ds = datasets.load_dataset(self.load_path, self.config, split='train')
         all_pixels = []
-        for image in tqdm(ds):
+        for image in ds:
             image = image['img']
             if image is None:
                 continue
