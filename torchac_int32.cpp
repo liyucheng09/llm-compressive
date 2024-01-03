@@ -231,8 +231,7 @@ cdf_t binsearch(const cdf_t* cdf, cdf_t target, cdf_t max_sym,
 
 torch::Tensor decode(
         const cdf_ptr& cdf_ptr,
-        const std::string& in,
-        const torch::Tensor& sym) {
+        const std::string& in) {
 
 #ifdef VERBOSE
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -255,8 +254,6 @@ torch::Tensor decode(
     InCacheString in_cache(in);
     in_cache.initialize(value);
 
-    auto sym_t = sym.accessor<int32_t, 1>();
-
     for (int i = 0; i < N_sym; ++i) {
         const uint64_t span = static_cast<uint64_t>(high) - static_cast<uint64_t>(low) + 1;
         // always < 0x10000 ???
@@ -266,10 +263,6 @@ torch::Tensor decode(
         auto sym_i = binsearch(cdf, count, (cdf_t)max_symbol, offset);
 
         out_[i] = (int32_t)sym_i;
-        // std::cout << "count " << count << std::endl;
-        // if (sym_i != sym_t[i]) {
-        //     std::cout << "sym_i != sym_t[i] " << sym_i << " " << sym_t[i] << " " << i << " " << count << std::endl;
-        // }
 
         if (i == N_sym-1) {
             break;
@@ -323,11 +316,10 @@ torch::Tensor decode(
 /** See torchac.py */
 torch::Tensor decode_cdf(
         const torch::Tensor& cdf, /* NHWLp */
-        const torch::Tensor& sym,
         const std::string& in)
 {
     const auto cdf_ptr = get_cdf_ptr(cdf);
-    return decode(cdf_ptr, in, sym);
+    return decode(cdf_ptr, in);
 }
 
 

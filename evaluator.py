@@ -7,6 +7,7 @@ from compressor import (
 )
 import os
 import json
+import torch
 
 class Metrics:
 
@@ -17,18 +18,20 @@ class Metrics:
         'flac': flac_compressor
     }
 
-    def __init__(self, modality, save_path, baselines = ['png', 'zlib', 'flac']):
+    def __init__(self, modality, save_path, model_name, baselines = ['png', 'zlib', 'flac']):
         self.baselines = {baseline: Metrics.baselines[baseline] for baseline in baselines}
         self.metrics = {
             'bpb': Metrics._bpb,
-            'ratio': Metrics._ratio,
             'original_size': Metrics._original_size,
+            'ratio': Metrics._ratio,
             'compressed_size': Metrics._compressed_size,
         }
         if modality == 'text':
             self.metrics['bpt'] = Metrics._bpt
             self.metrics['bpc'] = Metrics._bpc
+        
         self.save_path = save_path
+        self.use_arithmetic_coding = True if ('llama' in model_name.lower() or 'mistral' in model_name.lower()) else False
 
     def __call__(self, data_stream, metadata, model_name):
         # we will create a file for every model, under the save_dir.
@@ -51,26 +54,45 @@ class Metrics:
         
         # Now compute metrics for the model
         model_result_path = os.path.join(save_dir, model_name + '.json')
-        model_compressed_path = os.path.join(save_dir, model_name + '.compressed')
-        with open(model_compressed_path, 'wb') as f:
-            f.write(self.arithmetic_coding_cache)
+        if self.use_arithmetic_coding:
+            model_compressed_path = os.path.join(save_dir, model_name + '.compressed')
+            with open(model_compressed_path, 'wb') as f:
+                f.write(self.arithmetic_coding_cache)
         
-        compressed_size = len(self.arithmetic_coding_cache)
+        compressed_size = self.self_info_cache.item() / 8
         model_metrics = self._compute_metrics(compressed_size, metadata)
+
+        if self.use_arithmetic_coding:
+            compressed_size = len(self.arithmetic_coding_cache)
+            ac_metrics = self._compute_metrics(compressed_size, metadata)
+            ac_metrics = {'ac_' + metric: ac_metrics[metric] for metric in ac_metrics}
+            model_metrics.update(ac_metrics)
+
         with open(model_result_path, 'w') as f:
             json.dump(model_metrics, f, ensure_ascii=False, indent=2)
         
         print('Metrics computed for model {} on dataset {}'.format(model_name, name))
 
-    def cache_arithmetic_coding(self, pmf, sym):
+    def _cache_arithmetic_coding(self, pmf, sym):
         # Due to pmf is extremely memory consuming, we thus do the 
         # cache the arithmetic coding result
-        if getattr(self, 'arithmetic_coding_bytes', None) is None:
+        if getattr(self, 'arithmetic_coding_cache', None) is None:
             self.arithmetic_coding_cache = b''
         self.arithmetic_coding_cache += arithmetic_coding(pmf, sym)
     
-    def clear_arithmetic_coding_cache(self):
+    def _cache_self_info(self, pmf, sym):
+        if getattr(self, 'self_info_cache', None) is None:
+            self.self_info_cache = 0
+        self.self_info_cache += -torch.log2(pmf[:, :-1, :]).gather(dim=-1, index=sym[:, 1:].unsqueeze(-1)).squeeze(-1).sum()
+    
+    def clear_cache(self):
         self.arithmetic_coding_cache = b''
+        self.self_info_cache = 0
+    
+    def step(self, pmf, sym):
+        if self.use_arithmetic_coding:
+            self._cache_arithmetic_coding(pmf, sym.to(torch.int16))
+        self._cache_self_info(pmf, sym)
 
     @staticmethod
     def _bpb(compressed_size, metadata):

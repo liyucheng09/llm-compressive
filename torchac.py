@@ -3,28 +3,19 @@ import torch
 import numpy as np
 from torch.utils.cpp_extension import load
 
-
 PRECISION = 32
-
 
 # Load on-the-fly with ninja.
 torchac_dir = os.path.dirname(os.path.realpath(__file__))
-backend_dir = os.path.join(torchac_dir, 'backend')
-torchac_int16 = load(
-  name="torchac_backend",
-  sources=[os.path.join(backend_dir, "ac_backend.cpp")],
-  verbose=True)
 torchac_int32 = load(
   name="torchac_int32",
-  sources=[os.path.join(backend_dir, "ac_int32.cpp")],
+  sources=[os.path.join(torchac_dir, "torchac_int32.cpp")],
   verbose=True)
-
 
 def encode_float_cdf(cdf_float,
                      sym,
                      needs_normalization=True,
-                     check_input_bounds=False,
-                     precision = 32):
+                     check_input_bounds=False):
   """Encode symbols `sym` with potentially unnormalized floating point CDF.
 
   Check the README for more details.
@@ -38,7 +29,6 @@ def encode_float_cdf(cdf_float,
 
   :return: byte-string, encoding `sym`.
   """
-  assert precision in [16, 32], f'precision must be 16 or 32, but {precision} is given.'
   if check_input_bounds:
     if cdf_float.min() < 0:
       raise ValueError(f'cdf_float.min() == {cdf_float.min()}, should be >=0.!')
@@ -47,11 +37,11 @@ def encode_float_cdf(cdf_float,
     Lp = cdf_float.shape[-1]
     if sym.max() >= Lp - 1:
       raise ValueError
-  cdf_int = _convert_to_int_and_normalize(cdf_float, needs_normalization, precision)
-  return encode_int_normalized_cdf(cdf_int, sym, precision)
+  cdf_int = _convert_to_int_and_normalize(cdf_float, needs_normalization)
+  return encode_int_normalized_cdf(cdf_int, sym)
 
 
-def decode_float_cdf(cdf_float, byte_stream, sym, needs_normalization=True, precision=32):
+def decode_float_cdf(cdf_float, byte_stream, needs_normalization=True):
   """Encode symbols in `byte_stream` with potentially unnormalized float CDF.
 
   Check the README for more details.
@@ -63,11 +53,11 @@ def decode_float_cdf(cdf_float, byte_stream, sym, needs_normalization=True, prec
 
   :return: decoded `sym` of shape (N1, ..., Nm).
   """
-  cdf_int = _convert_to_int_and_normalize(cdf_float, needs_normalization, precision)
-  return decode_int_normalized_cdf(cdf_int, byte_stream, precision, sym)
+  cdf_int = _convert_to_int_and_normalize(cdf_float, needs_normalization)
+  return decode_int_normalized_cdf(cdf_int, byte_stream)
 
 
-def encode_int_normalized_cdf(cdf_int, sym, precision):
+def encode_int_normalized_cdf(cdf_int, sym):
   """Encode symbols `sym` with a normalized integer cdf `cdf_int`.
 
   Check the README for more details.
@@ -77,13 +67,10 @@ def encode_int_normalized_cdf(cdf_int, sym, precision):
 
   :return: byte-string, encoding `sym`
   """
-  cdf_int, sym = _check_and_reshape_inputs(cdf_int, sym, precision=precision)
-  if precision == 16:
-    return torchac_int16.encode_cdf(cdf_int, sym)
-  elif precision == 32:
-    return torchac_int32.encode_cdf(cdf_int, sym)
+  cdf_int, sym = _check_and_reshape_inputs(cdf_int, sym)
+  return torchac_int32.encode_cdf(cdf_int, sym)
 
-def decode_int_normalized_cdf(cdf_int, byte_stream, precision, sym_t):
+def decode_int_normalized_cdf(cdf_int, byte_stream):
   """Decode symbols in `byte_stream` with a normalized integer cdf `cdf_int`.
 
   Check the README for more details.
@@ -93,23 +80,20 @@ def decode_int_normalized_cdf(cdf_int, byte_stream, precision, sym_t):
 
   :return: decoded `sym` of shape (N1, ..., Nm).
   """
-  cdf_reshaped, sym_t = _check_and_reshape_inputs(cdf_int, sym_t, precision=precision)
+  cdf_reshaped = _check_and_reshape_inputs(cdf_int)
   # Merge the m dimensions into one.
-  if precision == 16:
-    sym = torchac_int16.decode_cdf(cdf_reshaped, byte_stream)
-  elif precision == 32:
-    sym = torchac_int32.decode_cdf(cdf_reshaped, sym_t, byte_stream)
+  sym = torchac_int32.decode_cdf(cdf_reshaped, byte_stream)
   return _reshape_output(cdf_int.shape, sym)
 
 
-def _check_and_reshape_inputs(cdf, sym=None, precision=32):
+def _check_and_reshape_inputs(cdf, sym=None):
   """Check device, dtype, and shapes."""
   if cdf.is_cuda:
     raise ValueError('CDF must be on CPU')
   if sym is not None and sym.is_cuda:
     raise ValueError('Symbols must be on CPU')
-  if sym is not None and sym.dtype != (torch.int16 if precision == 16 else torch.int32):
-    raise ValueError(f'Symbols must be int{precision}! Got {sym.dtype}.')
+  if sym is not None and sym.dtype != torch.int32:
+    raise ValueError(f'Symbols must be int32! Got {sym.dtype}.')
   if sym is not None:
     if len(cdf.shape) != len(sym.shape) + 1 or cdf.shape[:-1] != sym.shape:
       raise ValueError(f'Invalid shapes of cdf={cdf.shape}, sym={sym.shape}! '
@@ -131,7 +115,7 @@ def _reshape_output(cdf_shape, sym):
   return sym.reshape(*spatial_dimensions)
 
 
-def _convert_to_int_and_normalize(cdf_float, needs_normalization, precision):
+def _convert_to_int_and_normalize(cdf_float, needs_normalization):
   """Convert floatingpoint CDF to integers. See README for more info.
 
   The idea is the following:
@@ -150,14 +134,14 @@ def _convert_to_int_and_normalize(cdf_float, needs_normalization, precision):
   """
   Lp = cdf_float.shape[-1]
   factor = torch.tensor(
-    2, dtype=torch.float32, device=cdf_float.device).pow_(precision-2)
+    2, dtype=torch.float32, device=cdf_float.device).pow_(30)
   new_max_value = factor
   if needs_normalization:
     new_max_value = new_max_value - (Lp - 1)
   cdf_float = cdf_float.mul(new_max_value)
   cdf_float = cdf_float.round()
-  cdf = cdf_float.to(dtype=torch.int32 if precision == 32 else torch.int16, non_blocking=True)
+  cdf = cdf_float.to(dtype=torch.int32, non_blocking=True)
   if needs_normalization:
-    r = torch.arange(Lp, dtype=torch.int32 if precision == 32 else torch.int16, device=cdf.device)
+    r = torch.arange(Lp, dtype=torch.int32, device=cdf.device)
     cdf.add_(r)
   return cdf

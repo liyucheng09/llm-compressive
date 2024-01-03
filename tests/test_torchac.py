@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, GPT2LMHeadModel
 import torch
-import torchac
+import torchac_
 
 def pmf_to_cdf(pmf):
   cdf = pmf.cumsum(dim=-1)
@@ -26,5 +26,5 @@ print(probs.shape)
 cdf = pmf_to_cdf(probs)
 print(cdf.shape)
 
-byte_stream = torchac.encode_float_cdf(cdf, inputs['input_ids'].to(torch.int16))
+byte_stream = torchac_.encode_float_cdf(cdf, inputs['input_ids'].to(torch.int16))
 print(len(byte_stream))

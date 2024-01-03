@@ -64,7 +64,7 @@ def load_model_and_tokenizer(model_name):
         model = AutoModel.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
     elif 'llama' in model_name.lower() or 'Yi-34B' in model_name:
         model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
-    elif 'yi' in model_name.lower():
+    elif 'yi' in model_name.lower() or 'mistral' in model_name.lower():
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
     else:
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
@@ -96,7 +96,7 @@ if __name__ == '__main__':
         data.prepare_batches(context_size)
         print(f'Total number of chunks: {data.metadata["num_chunks"]}')
 
-        metrics = Metrics(modality, save_path)
+        metrics = Metrics(modality, save_path, model_name)
         
         for i, chunk in enumerate(tqdm(data.batches(batch_size))):
 
@@ -108,10 +108,10 @@ if __name__ == '__main__':
             logits = output.logits
             pmf = torch.softmax(logits, dim=-1)
 
-            metrics.cache_arithmetic_coding(pmf, input_ids.to(torch.int16))
+            metrics.step(pmf, input_ids)
 
         metrics(data.stream, data.metadata, model_name)
         print(f'==== Finished processing {name} {time}.======')
 
-        metrics.clear_arithmetic_coding_cache()
+        metrics.clear_cache()
 
