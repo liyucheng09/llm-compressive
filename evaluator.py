@@ -18,7 +18,7 @@ class Metrics:
         'flac': flac_compressor
     }
 
-    def __init__(self, modality, save_path, model_name, baselines = ['png', 'zlib', 'flac']):
+    def __init__(self, modality, save_path, model_name, baselines = ['png', 'zlib', 'flac'], byte2id = None):
         self.baselines = {baseline: Metrics.baselines[baseline] for baseline in baselines}
         self.metrics = {
             'bpb': Metrics._bpb,
@@ -26,9 +26,13 @@ class Metrics:
             'ratio': Metrics._ratio,
             'compressed_size': Metrics._compressed_size,
         }
+        self.modality = modality
         if modality == 'text':
             self.metrics['bpt'] = Metrics._bpt
             self.metrics['bpc'] = Metrics._bpc
+        else:
+            assert byte2id is not None
+            self.byte2id = torch.tensor(byte2id, dtype=torch.long)
         
         self.save_path = save_path
         self.use_arithmetic_coding = True if ('llama' in model_name.lower() or 'mistral' in model_name.lower()) else False
@@ -59,7 +63,7 @@ class Metrics:
             with open(model_compressed_path, 'wb') as f:
                 f.write(self.arithmetic_coding_cache)
         
-        compressed_size = self.self_info_cache.item() / 8
+        compressed_size = self.self_info_cache / 8
         model_metrics = self._compute_metrics(compressed_size, metadata)
 
         if self.use_arithmetic_coding:
@@ -83,13 +87,25 @@ class Metrics:
     def _cache_self_info(self, pmf, sym):
         if getattr(self, 'self_info_cache', None) is None:
             self.self_info_cache = 0
-        self.self_info_cache += -torch.log2(pmf[:, :-1, :]).gather(dim=-1, index=sym[:, 1:].unsqueeze(-1)).squeeze(-1).sum()
+        self.self_info_cache += -torch.log2(pmf[:, :-1, :]).gather(dim=-1, index=sym[:, 1:].unsqueeze(-1)).squeeze(-1).sum().item()
     
     def clear_cache(self):
         self.arithmetic_coding_cache = b''
         self.self_info_cache = 0
     
-    def step(self, pmf, sym):
+    def step(self, logits, sym):
+        if self.modality != 'text':
+            if self.byte2id.device != logits.device:
+                self.byte2id = self.byte2id.to(logits.device)
+
+            # we restrict the output space in the byte space
+            true_logits = logits.index_select(dim=-1, index=self.byte2id)
+            pmf = torch.softmax(true_logits, dim=-1)
+
+            # map the byte symbol to the index in the pure byte space coordinating the true_logits
+            _, _, new_sym = torch.nonzero(self.byte2id == sym.unsqueeze(-1), as_tuple=True)
+            sym=new_sym.view(sym.shape)
+
         if self.use_arithmetic_coding:
             self._cache_arithmetic_coding(pmf, sym.to(torch.int16))
         self._cache_self_info(pmf, sym)

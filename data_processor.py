@@ -33,7 +33,7 @@ class BaseProcessor:
 
         self.chunk_size = chunk_size
         if self.modality == 'image':
-            self.sample_patch_size = (64, 128)
+            self.sample_patch_size = (32, 64)
         elif self.modality == 'text':
             self.sample_chunk_size = 2**14
         elif self.modality == 'audio':
@@ -75,7 +75,7 @@ class MultiModalProcessor(BaseProcessor):
         byte2ids = np.zeros(256, dtype=np.int32)
 
         for byte in range(256):
-            byte_token = f'<0x{byte:02x}>' # e.g. <0x00>
+            byte_token = f'<0x{byte:02X}>' # e.g. <0x00>
             byte2ids[byte] = self.tokenizer.convert_tokens_to_ids(byte_token)
 
         self.byte2ids = byte2ids

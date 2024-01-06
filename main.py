@@ -30,7 +30,7 @@ model_max_context = {
 }
 
 def prepare_data(data_name, save_path, tokenizer):
-    all_time_stamps = [f'{year}-{month:02d}' for year in range(2017, 2024) for month in range(1, 12)]
+    all_time_stamps = [f'{year}-{month:02d}' for year in range(2017, 2024) for month in range(1, 13) if not (year == 2023 and month > 11)]
     if data_name == 'bbc_news':
         data_path = 'RealTimeData/bbc_news_alltime'
         modality = 'text'
@@ -62,9 +62,9 @@ def load_model_and_tokenizer(model_name):
 
     if 'chatglm' in model_name.lower():
         model = AutoModel.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
-    elif 'llama' in model_name.lower() or 'Yi-34B' in model_name:
+    elif 'hf' not in model_name.lower() and ('llama' in model_name.lower() or 'Yi-34B' in model_name):
         model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
-    elif 'yi' in model_name.lower() or 'mistral' in model_name.lower():
+    elif 'yi' in model_name.lower() or 'mistral' in model_name.lower() or 'hf' in model_name.lower():
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
     else:
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
@@ -85,6 +85,7 @@ if __name__ == '__main__':
     if getattr(model.config, 'quantization_config', None) is not None and model.config.quantization_config.use_exllama and model.config.quantization_config.desc_act:
         model = exllama_set_max_input_length(model, context_size*batch_size)
     all_data, modality = prepare_data(data_name, save_path, tokenizer)
+    print(f'Data {data_name}, Modality {modality}')
 
     if 'qwen' in model_name.lower() and modality != 'text':
         raise ValueError('Qwen do not support byte tokenization. So text data only.')
@@ -96,7 +97,7 @@ if __name__ == '__main__':
         data.prepare_batches(context_size)
         print(f'Total number of chunks: {data.metadata["num_chunks"]}')
 
-        metrics = Metrics(modality, save_path, model_name)
+        metrics = Metrics(modality, save_path, model_name, byte2id=data.byte2ids if modality != 'text' else None)
         
         for i, chunk in enumerate(tqdm(data.batches(batch_size))):
 
@@ -106,9 +107,8 @@ if __name__ == '__main__':
                 output = model(**input_)
             
             logits = output.logits
-            pmf = torch.softmax(logits, dim=-1)
 
-            metrics.step(pmf, input_ids)
+            metrics.step(logits, input_ids)
 
         metrics(data.stream, data.metadata, model_name)
         print(f'==== Finished processing {name} {time}.======')
