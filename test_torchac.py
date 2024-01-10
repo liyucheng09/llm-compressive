@@ -26,7 +26,11 @@ probs = outputs.logits.softmax(dim=-1)
 print(probs.shape)
 
 cdf = pmf_to_cdf(probs)
-print(cdf.shape)
+
+bits = -torch.log2(probs).gather(dim=-1, index=inputs['input_ids'].unsqueeze(-1)).squeeze(-1).sum()
+print(bits)
+print(bits/8)
+print(text.encode('utf-8').__len__())
 
 cdf = cdf.detach().cpu()
 
@@ -45,5 +49,7 @@ print('=========================')
 
 assert sym_32.equal(d)
 
-# print(torchac.decode_float_cdf(cdf, byte_stream).shape)
-# print(inputs['input_ids'].shape)
+# torchac.decode_float_cdf(cdf, byte_stream, sym)
+
+# # print(torchac.decode_float_cdf(cdf, byte_stream).shape)
+# # print(inputs['input_ids'].shape)
