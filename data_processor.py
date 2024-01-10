@@ -89,14 +89,25 @@ class MultiModalProcessor(BaseProcessor):
         ids = byte2ids[byte_array].tolist()
         return ids
 
-    def prepare_batches(self, context_size):
+    def prepare_batches(self, context_size, stride=None):
         assert getattr(self, 'input_ids', None) is not None, 'Please run _data_stream() first.'
         input_ids = self.input_ids
 
-        # now we chunk the long input_ids into batches
-        chunks = [input_ids[i:i+context_size] for i in range(0, len(input_ids), context_size)]
-        last_chunk = chunks[-1]
-        chunks = chunks[:-1]
+        if stride is None:
+            # now we chunk the long input_ids into batches
+            chunks = [input_ids[i:i+context_size] for i in range(0, len(input_ids), context_size)]
+            last_chunk = chunks[-1]
+            chunks = chunks[:-1]
+        else:
+            assert stride < context_size, 'Stride should be smaller than context size.'
+            self.stride = stride
+            chunks = []
+            for i in range(0, len(input_ids), stride):
+                chunk = input_ids[i:i+context_size]
+                if len(chunk) < context_size:
+                    break
+                chunks.append(chunk)
+            last_chunk = input_ids[i + (context_size - stride):]
 
         self.bytes_droped = len(last_chunk)
         self.chunks = chunks
@@ -107,6 +118,7 @@ class MultiModalProcessor(BaseProcessor):
     def _metadata(self):
         num_chunks = len(self.chunks)
         num_bytes = self.context_size * num_chunks
+        stride =  getattr(self, 'stride', 'None')
         self.metadata = {
             'name': self.name,
             'modality': self.modality,
@@ -117,6 +129,7 @@ class MultiModalProcessor(BaseProcessor):
             'context_size': self.context_size,
             'num_chunks': num_chunks,
             'num_bytes': num_bytes,
+            'stride': stride,
         }
     
     def _data_stream(self):
@@ -147,15 +160,20 @@ class TextProcessor(BaseProcessor):
         print(f'Tokenizing {self.name} {self.config}...')
         start_time = time.time()
 
+        # For code data, sents are a list of code files
+        # For non-code data, sents are a list of sentences
         sents = self.sents
-        # add space between sentences
-        for i in range(1, len(sents)):
-            sents[i] = ' ' + sents[i]
+
+        # For non-code data, we tokenize in sent-level.
+        # So add space between sentences here.
+        if self.name != 'code':
+            for i in range(1, len(sents)):
+                sents[i] = ' ' + sents[i]
         
         self.all_text = ''.join(sents)
         self.stream = self.all_text.encode('utf-8')
 
-        chunk_size = 100
+        chunk_size = 100 if self.name != 'code' else 1 # for code, we tokenize file-by-file
         sent_chunks = [sents[i:i+chunk_size] for i in range(0, len(sents), chunk_size)]
 
         num_workers = multiprocessing.cpu_count()
@@ -174,18 +192,29 @@ class TextProcessor(BaseProcessor):
         print(f'Tokenization finished. Time used: {end_time - start_time:.2f}s')
         # self._cache_chunks_and_metadata()
 
-    def prepare_batches(self, context_size):
+    def prepare_batches(self, context_size, stride=None):
         assert getattr(self, 'input_ids', None) is not None, 'Please run _data_stream() first.'
         input_ids = self.input_ids
 
-        # now we chunk the long input_ids into batches
-        chunks = [input_ids[i:i+context_size] for i in range(0, len(input_ids), context_size)]
-        last_chunk = chunks[-1]
-        chunks = chunks[:-1]
+        if stride is None:
+            # now we chunk the long input_ids into batches
+            chunks = [input_ids[i:i+context_size] for i in range(0, len(input_ids), context_size)]
+            last_chunk = chunks[-1]
+            chunks = chunks[:-1]
 
-        self.text_droped = self.tokenizer.decode(last_chunk)
+            self.text_droped = self.tokenizer.decode(last_chunk)
+        else:
+            assert stride < context_size, 'Stride should be smaller than context size.'
+            self.stride = stride
+            chunks = []
+            for i in range(0, len(input_ids), stride):
+                chunk = input_ids[i:i+context_size]
+                if len(chunk) < context_size:
+                    break
+                chunks.append(chunk)
+            self.text_droped = self.tokenizer.decode(input_ids[i + (context_size - stride):])
+
         self.chunks = chunks
-
         self.context_size = context_size
         self._metadata()
     
@@ -194,6 +223,7 @@ class TextProcessor(BaseProcessor):
         num_tokens = num_chunks * self.context_size
         num_chars = len(self.all_text) - len(self.text_droped)
         num_bytes = len(self.stream) - len(self.text_droped.encode('utf-8'))
+        stride =  getattr(self, 'stride', 'None')
         self.metadata = {
             'name': self.name,
             'modality': self.modality,
@@ -206,6 +236,7 @@ class TextProcessor(BaseProcessor):
             'num_tokens': num_tokens,
             'num_chars': num_chars,
             'num_bytes': num_bytes,
+            'stride': stride,
         }
 
 class BBCNewsProcessor(TextProcessor):
@@ -230,6 +261,14 @@ class WikiTextProcessor(TextProcessor):
             text = article['text']
             sents = sent_tokenize(text)
             all_sents += sents[:num_sents_per_article]
+        self.sents = all_sents
+
+class CodeProcessor(TextProcessor):
+    def _load_dataset(self):
+        ds = datasets.load_dataset(self.load_path, self.config, split='train')
+        all_sents = []
+        for code in ds:
+            all_sents.append(code['code'])
         self.sents = all_sents
 
 class BBCImageProcessor(MultiModalProcessor):

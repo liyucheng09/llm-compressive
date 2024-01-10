@@ -4,6 +4,7 @@ from data_processor import (
     BBCNewsProcessor,
     BBCImageProcessor,
     WikiTextProcessor,
+    CodeProcessor,
 )
 import os
 import sys
@@ -19,18 +20,25 @@ model_max_context = {
     'Llama-2-13B': 4096,
     'Llama-2-70B': 4096,
     'Llama-2-7B': 4096,
+    'Llama-2-7B-HF': 4096,
     'LLaMA-30B': 2048,
     'LLaMA-65B': 2048,
     'LLaMA-7B': 2048,
+    'LLaMA-7B-HF': 2048,
     'Qwen-7B': 32768,
-    'Yi-34B-200K': 2048,
+    'Yi-34B-200K': 200000,
     'Yi-6B': 4096,
+    'Yi-6B-200K': 200000,
     'Mistral-7B': 32768,
     'Mistral-7B-Instruct': 32768,
 }
 
 def prepare_data(data_name, save_path, tokenizer):
-    all_time_stamps = [f'{year}-{month:02d}' for year in range(2017, 2024) for month in range(1, 13) if not (year == 2023 and month > 11)]
+    if data_name == 'code':
+        all_time_stamps = [f'{year}-{month:02d}' for year in range(2019, 2024) for month in range(1, 13) if not (year == 2023 and month > 11)]
+    else:
+        all_time_stamps = [f'{year}-{month:02d}' for year in range(2017, 2024) for month in range(1, 13) if not (year == 2023 and month > 11)]
+        
     if data_name == 'bbc_news':
         data_path = 'RealTimeData/bbc_news_alltime'
         modality = 'text'
@@ -43,6 +51,10 @@ def prepare_data(data_name, save_path, tokenizer):
         data_path = 'RealTimeData/bbc_images_alltime'
         modality = 'image'
         processor = BBCImageProcessor
+    elif data_name == 'code':
+        data_path = 'RealTimeData/code_alltime'
+        modality = 'text'
+        processor = CodeProcessor
 
     all_data = [
         processor(
@@ -74,11 +86,16 @@ def load_model_and_tokenizer(model_name):
 if __name__ == '__main__':
     model_name, data_name, save_path, context_size, batch_size, = sys.argv[1:]
     batch_size = int(batch_size)
-    if context_size == 'max_length':
+    if context_size == 'stride':
+        context_size = 2048
+        stride = 512
+    elif context_size == 'max_length':
         # restrict the context size up to 8192 to prevent OOM
         context_size = min(model_max_context[model_name], 8192)
+        stride = None
     else:
         context_size = int(context_size)
+        stride = None
     
     model_path = os.path.join('/mnt/fast/nobackup/scratch4weeks/yl02706/models', model_name)
     model, tokenizer = load_model_and_tokenizer(model_path)
@@ -94,7 +111,7 @@ if __name__ == '__main__':
         name, time = data.name, data.config
         print(f'Processing {name} {time}...')
 
-        data.prepare_batches(context_size)
+        data.prepare_batches(context_size, stride = stride)
         print(f'Total number of chunks: {data.metadata["num_chunks"]}')
 
         metrics = Metrics(modality, save_path, model_name, byte2id=data.byte2ids if modality != 'text' else None)
@@ -108,7 +125,7 @@ if __name__ == '__main__':
             
             logits = output.logits
 
-            metrics.step(logits, input_ids)
+            metrics.step(logits, input_ids, stride = stride)
 
         metrics(data.stream, data.metadata, model_name)
         print(f'==== Finished processing {name} {time}.======')

@@ -124,12 +124,12 @@ py::bytes encode(
     uint32_t high = 0xFFFFFFFFU;
     uint64_t pending_bits = 0;
 
+    const int norm = 30;
+
     const cdf_t* cdf = cdf_ptr.data;
     const int N_sym = cdf_ptr.N_sym;
     const int Lp = cdf_ptr.Lp;
     const int max_symbol = Lp - 2;
-
-    const int precision = 30;
 
     auto sym_ = sym.accessor<int32_t, 1>();
 
@@ -148,8 +148,8 @@ py::bytes encode(
         // is then given by c_max -
         const uint32_t c_high = sym_i == max_symbol ? 0x40000000U : cdf[offset + sym_i + 1];
 
-        high = (low - 1) + ((span * static_cast<uint64_t>(c_high)) >> precision);
-        low =  (low)     + ((span * static_cast<uint64_t>(c_low))  >> precision);
+        high = (low - 1) + ((span * static_cast<uint64_t>(c_high)) >> norm);
+        low =  (low)     + ((span * static_cast<uint64_t>(c_low))  >> norm);
 
         while (true) {
             if (high < 0x80000000U) {
@@ -206,6 +206,10 @@ py::bytes encode_cdf(
 }
 
 
+
+//------------------------------------------------------------------------------
+
+
 cdf_t binsearch(const cdf_t* cdf, cdf_t target, cdf_t max_sym,
                 const int offset)  /* i * Lp */
 {
@@ -242,6 +246,7 @@ torch::Tensor decode(
     const int Lp = cdf_ptr.Lp;  // To calculate offset
     const int max_symbol = Lp - 2;
 
+    // 32 bit
     auto out = torch::empty({N_sym}, torch::kInt32);
     auto out_ = out.accessor<int32_t, 1>();
 
@@ -249,7 +254,7 @@ torch::Tensor decode(
     uint32_t high = 0xFFFFFFFFU;
     uint32_t value = 0;
     const uint64_t c_count = 0x40000000U;
-    const int precision = 30;
+    const int norm = 30;
 
     InCacheString in_cache(in);
     in_cache.initialize(value);
@@ -257,7 +262,7 @@ torch::Tensor decode(
     for (int i = 0; i < N_sym; ++i) {
         const uint64_t span = static_cast<uint64_t>(high) - static_cast<uint64_t>(low) + 1;
         // always < 0x10000 ???
-        const uint64_t count = ((static_cast<uint64_t>(value) - static_cast<uint64_t>(low) + 1) * c_count - 1) / span;
+        const uint32_t count = ((static_cast<uint64_t>(value) - static_cast<uint64_t>(low) + 1) * c_count - 1) / span;
 
         const int offset = i * Lp;
         auto sym_i = binsearch(cdf, count, (cdf_t)max_symbol, offset);
@@ -269,10 +274,10 @@ torch::Tensor decode(
         }
 
         const uint32_t c_low = cdf[offset + sym_i];
-        const uint64_t c_high = sym_i == max_symbol ? 0x40000000U : cdf[offset + sym_i + 1];
+        const uint32_t c_high = sym_i == max_symbol ? 0x40000000U : cdf[offset + sym_i + 1];
 
-        high = (low - 1) + ((span * static_cast<uint64_t>(c_high)) >> precision);
-        low =  (low)     + ((span * static_cast<uint64_t>(c_low))  >> precision);
+        high = (low - 1) + ((span * static_cast<uint64_t>(c_high)) >> norm);
+        low =  (low)     + ((span * static_cast<uint64_t>(c_low))  >> norm);
 
         while (true) {
             if (low >= 0x80000000U || high < 0x80000000U) {
