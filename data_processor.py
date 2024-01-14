@@ -8,6 +8,12 @@ import multiprocessing
 import pickle
 import time
 from tqdm import tqdm
+import re
+
+global_tokenizer = None
+def set_global_tokenizer(tokenizer):
+    global global_tokenizer
+    global_tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True, trust_remote_code=True)
 
 class BaseProcessor:
     def __init__(self, name, modality, load_path, cache_path, tokenizer, config, total_size=2**24, chunk_size=2**11):
@@ -59,9 +65,8 @@ class BaseProcessor:
         print(f'Saved tokenized input_ids to {cache_path}')
     
     @staticmethod
-    def _tokenize_chunk(text, tokenizer_path):
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=True, trust_remote_code=True)
-        return tokenizer(text, add_special_tokens=False)['input_ids']
+    def _tokenize_chunk(text):
+        return global_tokenizer(text, add_special_tokens=False)['input_ids']
 
 class MultiModalProcessor(BaseProcessor):
     def __init__(self, name, modality, load_path, cache_path, tokenizer, config, total_size=2**20, chunk_size=2**11):
@@ -150,7 +155,7 @@ class MultiModalProcessor(BaseProcessor):
         self.input_ids = input_ids
 
 class TextProcessor(BaseProcessor):
-    def __init__(self, name, modality, load_path, cache_path, tokenizer, config, total_size=2**24, chunk_size=2**11, **kwargs):
+    def __init__(self, name, modality, load_path, cache_path, tokenizer, config, total_size=2**23, chunk_size=2**11, **kwargs):
         super().__init__(name, modality, load_path, cache_path, tokenizer, config, total_size, chunk_size)
 
         self._load_dataset(**kwargs)
@@ -162,7 +167,13 @@ class TextProcessor(BaseProcessor):
 
         # For code data, sents are a list of code files
         # For non-code data, sents are a list of sentences
-        sents = self.sents
+        sents = []
+        size_counter = 0
+        for sent in self.sents:
+            size_counter += len(sent.encode())
+            if size_counter > self.total_size:
+                break
+            sents.append(sent)
 
         # For non-code data, we tokenize in sent-level.
         # So add space between sentences here.
@@ -173,13 +184,16 @@ class TextProcessor(BaseProcessor):
         self.all_text = ''.join(sents)
         self.stream = self.all_text.encode('utf-8')
 
-        chunk_size = 100 if self.name != 'code' else 1 # for code, we tokenize file-by-file
+        if self.name == 'code' or self.name == 'arxiv':
+            chunk_size = 1
+        else:
+            chunk_size = 100
         sent_chunks = [sents[i:i+chunk_size] for i in range(0, len(sents), chunk_size)]
 
         num_workers = multiprocessing.cpu_count()
         tokenizer_path = self.tokenizer.name_or_path
-        with multiprocessing.Pool(processes=num_workers) as pool:
-            result = pool.starmap(self._tokenize_chunk, [(chunk, tokenizer_path) for chunk in sent_chunks])
+        with multiprocessing.Pool(processes=num_workers, initializer=set_global_tokenizer, initargs=(tokenizer_path,)) as pool:
+            result = pool.map(self._tokenize_chunk, sent_chunks)
         
         input_ids = []
         for chunk in result:
@@ -266,10 +280,43 @@ class WikiTextProcessor(TextProcessor):
 class CodeProcessor(TextProcessor):
     def _load_dataset(self):
         ds = datasets.load_dataset(self.load_path, self.config, split='train')
+        ds = ds.shuffle()
+        
         all_sents = []
         for code in ds:
-            all_sents.append(code['code'])
+            # It might be good idea to prevent super long code file
+            # If the code file is over 2000 lines, we take the first 2000 lines
+            code_lines = code['code'].splitlines()[:2000]
+            code_ = '\n'.join(code_lines)
+            all_sents.append(code_) 
+
         self.sents = all_sents
+
+class ArxivProcessor(TextProcessor):
+    def _load_dataset(self, num_sections = 2):
+        ds = datasets.load_dataset(self.load_path, self.config, split='train')
+        all_sents = []
+        for article in ds:
+            text = article['text']
+            sections = self._process_article(text)
+            if sections is None:
+                continue
+            all_sents += sections[:num_sections]
+        self.sents = all_sents
+    
+    def _process_article(self, text):
+        def beautify_context(context: str) -> str:
+            context = context.replace("<cit.>", '').replace('<ref>', '')
+            context = re.sub(r"\s+", " ", context)
+            context = re.sub(r"\n+", " ", context)
+            return context
+
+        text = re.sub(r"^.*?(§)", r"\1", text, flags=re.DOTALL)
+        sections = re.split(r"(?<!§\.)§\s", text)
+        sections = [beautify_context(section) for section in sections if section.strip()]
+        if not sections:
+            return None
+        return sections
 
 class BBCImageProcessor(MultiModalProcessor):
 

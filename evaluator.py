@@ -19,7 +19,7 @@ class Metrics:
         'flac': flac_compressor
     }
 
-    def __init__(self, modality, save_path, model_name, baselines = ['png', 'zlib', 'flac'], byte2id = None):
+    def __init__(self, modality, save_path, model_name, baselines = ['png', 'zlib', 'flac'], byte2id = None, use_arithmetic_coding = True):
         self.baselines = {baseline: Metrics.baselines[baseline] for baseline in baselines}
         self.metrics = {
             'bpb': Metrics._bpb,
@@ -27,7 +27,8 @@ class Metrics:
             'ratio': Metrics._ratio,
             'compressed_size': Metrics._compressed_size,
             'context_size': Metrics._context_size,
-            'stride': Metrics._stride
+            'stride': Metrics._stride,
+            'batches': Metrics._num_chunks
         }
         self.modality = modality
         if modality == 'text':
@@ -38,7 +39,7 @@ class Metrics:
             self.byte2id = torch.tensor(byte2id, dtype=torch.long)
         
         self.save_path = save_path
-        self.use_arithmetic_coding = True
+        self.use_arithmetic_coding = use_arithmetic_coding
 
     def __call__(self, data_stream, metadata, model_name):
         # we will create a file for every model, under the save_dir.
@@ -93,7 +94,7 @@ class Metrics:
             # then we only need to use pmf[:, -stride:, :]
             pmf = pmf[:, -stride:, :]
             sym = sym[:, -stride:]
-        self.arithmetic_coding_cache += arithmetic_coding(pmf, sym)
+        self.arithmetic_coding_cache += arithmetic_coding(pmf[:, :-1, :], sym[:, 1:])
     
     def _cache_self_info(self, pmf, sym, stride = None):
         if getattr(self, 'self_info_cache', None) is None or self.self_info_cache == 0:
@@ -172,6 +173,11 @@ class Metrics:
     def _context_size(compressed_size, metadata):
         # context size in the compression
         return metadata['context_size']
+    
+    @staticmethod
+    def _num_chunks(compressed_size, metadata):
+        # number of chunks
+        return metadata['num_chunks']
 
     def _compute_metrics(self, compressed_size, metadata):
         metrics = {}

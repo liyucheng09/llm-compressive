@@ -5,6 +5,7 @@ from data_processor import (
     BBCImageProcessor,
     WikiTextProcessor,
     CodeProcessor,
+    ArxivProcessor,
 )
 import os
 import sys
@@ -34,11 +35,8 @@ model_max_context = {
 }
 
 def prepare_data(data_name, save_path, tokenizer):
-    if data_name == 'code':
-        all_time_stamps = [f'{year}-{month:02d}' for year in range(2019, 2024) for month in range(1, 13) if not (year == 2023 and month > 11)]
-    else:
-        all_time_stamps = [f'{year}-{month:02d}' for year in range(2017, 2024) for month in range(1, 13) if not (year == 2023 and month > 11)]
-        
+    all_time_stamps = [f'{year}-{month:02d}' for year in range(2017, 2024) for month in range(1, 13) if not (year == 2023 and month > 11)]
+
     if data_name == 'bbc_news':
         data_path = 'RealTimeData/bbc_news_alltime'
         modality = 'text'
@@ -55,6 +53,10 @@ def prepare_data(data_name, save_path, tokenizer):
         data_path = 'RealTimeData/code_alltime'
         modality = 'text'
         processor = CodeProcessor
+    elif data_name == 'arxiv':
+        data_path = 'RealTimeData/arxiv_alltime'
+        modality = 'text'
+        processor = ArxivProcessor
 
     all_data = [
         processor(
@@ -74,7 +76,7 @@ def load_model_and_tokenizer(model_name):
 
     if 'chatglm' in model_name.lower():
         model = AutoModel.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
-    elif 'hf' not in model_name.lower() and ('llama' in model_name.lower() or 'Yi-34B' in model_name):
+    elif 'hf' not in model_name.lower() and 'code' not in model_name.lower() and ('llama' in model_name.lower() or 'Yi-34B' in model_name):
         model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
     elif 'yi' in model_name.lower() or 'mistral' in model_name.lower() or 'hf' in model_name.lower():
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
@@ -114,7 +116,7 @@ if __name__ == '__main__':
         data.prepare_batches(context_size, stride = stride)
         print(f'Total number of chunks: {data.metadata["num_chunks"]}')
 
-        metrics = Metrics(modality, save_path, model_name, byte2id=data.byte2ids if modality != 'text' else None)
+        metrics = Metrics(modality, save_path, model_name, byte2id=data.byte2ids if modality != 'text' else None, use_arithmetic_coding = False)
         
         for i, chunk in enumerate(tqdm(data.batches(batch_size))):
 
