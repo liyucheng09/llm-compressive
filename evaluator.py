@@ -102,7 +102,7 @@ class Metrics:
         elif stride is not None:
             pmf = pmf[:, -stride:, :]
             sym = sym[:, -stride:]
-        self.self_info_cache += -torch.log2(pmf[:, :-1, :]).gather(dim=-1, index=sym[:, 1:].unsqueeze(-1)).squeeze(-1).sum().item()
+        self.self_info_cache += -torch.log2(pmf[:, :-1, :]).gather(dim=-1, index=sym[:, 1:].unsqueeze(-1)).sum().item()
     
     def clear_cache(self):
         self.arithmetic_coding_cache = b''

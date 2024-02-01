@@ -43,7 +43,7 @@ class BaseProcessor:
         elif self.modality == 'text':
             self.sample_chunk_size = 2**14
         elif self.modality == 'audio':
-            self.sample_chunk_size = 2**13
+            self.sample_chunk_size = 2**16
 
         # self._check_and_load_cached_input_ids()
 
@@ -280,13 +280,15 @@ class WikiTextProcessor(TextProcessor):
 class CodeProcessor(TextProcessor):
     def _load_dataset(self):
         ds = datasets.load_dataset(self.load_path, self.config, split='train')
-        ds = ds.shuffle()
+        ds = ds.shuffle(seed=42)
         
         all_sents = []
         for code in ds:
-            # It might be good idea to prevent super long code file
-            # If the code file is over 2000 lines, we take the first 2000 lines
-            code_lines = code['code'].splitlines()[:2000]
+            # If the code file is over 500 lines, we sample a 500 lines continues chunk from the code
+            code_lines = code['code'].splitlines()
+            if len(code_lines) > 500:
+                start = np.random.randint(0, len(code_lines) - 500)
+                code_lines = code_lines[start:start+500]
             code_ = '\n'.join(code_lines)
             all_sents.append(code_) 
 
@@ -355,3 +357,33 @@ class BBCImageProcessor(MultiModalProcessor):
         patch_array = np.array(patch_gray).flatten().tolist()
 
         return patch_array
+
+class AudioProcessor(MultiModalProcessor):
+    def _load_dataset(self):
+        ds = datasets.load_dataset(self.load_path, self.config, split='train')
+        all_bytes = b''
+        for audio in ds:
+            # audio bytes stream
+            audio = audio['audio']
+
+            # sample multiple chunk of audio
+            chunk = self._sample_chunk(audio, self.sample_chunk_size)
+            all_bytes += chunk
+
+        self.stream = all_bytes
+    
+    def _sample_chunk(self, audio, chunk_size, num_chunks_per_file = 50):
+        # audio: bytes stream
+        # chunk_size: number of bytes per chunk
+        # num_chunks_per_file: number of chunks to sample from each audio file
+        num_bytes = len(audio)
+        if num_bytes < chunk_size * num_chunks_per_file:
+            return audio
+        
+        chunks = b''
+        for i in range(num_chunks_per_file):
+            start = np.random.randint(0, num_bytes - chunk_size)
+            chunk = audio[start:start+chunk_size]
+            chunks += chunk
+        
+        return chunks

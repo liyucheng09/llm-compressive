@@ -6,6 +6,7 @@ from data_processor import (
     WikiTextProcessor,
     CodeProcessor,
     ArxivProcessor,
+    AudioProcessor,
 )
 import os
 import sys
@@ -57,6 +58,10 @@ def prepare_data(data_name, save_path, tokenizer):
         data_path = 'RealTimeData/arxiv_alltime'
         modality = 'text'
         processor = ArxivProcessor
+    elif data_name == 'audio':
+        data_path = 'RealTimeData/audio_alltime'
+        modality = 'audio'
+        processor = AudioProcessor
 
     all_data = [
         processor(
