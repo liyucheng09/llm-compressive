@@ -77,8 +77,10 @@ class MultiModalProcessor(BaseProcessor):
         self._data_stream()
     
     def _prepare_tokenizer(self):
-        byte2ids = np.zeros(256, dtype=np.int32)
+        if 'qwen' in self.tokenizer.name_or_path:
+            exit('You are using Qwen tokenizer on multimodal data. Qwen do not support byte tokenization. exiting...')
 
+        byte2ids = np.zeros(256, dtype=np.int32)
         for byte in range(256):
             byte_token = f'<0x{byte:02X}>' # e.g. <0x00>
             byte2ids[byte] = self.tokenizer.convert_tokens_to_ids(byte_token)

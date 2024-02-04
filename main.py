@@ -81,9 +81,9 @@ def load_model_and_tokenizer(model_name):
 
     if 'chatglm' in model_name.lower():
         model = AutoModel.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
-    elif 'hf' not in model_name.lower() and 'code' not in model_name.lower() and ('llama' in model_name.lower() or 'Yi-34B' in model_name):
+    elif 'gptq' in model_name.lower():
         model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
-    elif 'yi' in model_name.lower() or 'mistral' in model_name.lower() or 'hf' in model_name.lower():
+    elif 'yi' in model_name.lower() or 'mistral' in model_name.lower() or 'llama' in model_name.lower():
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True, attn_implementation="flash_attention_2")
     else:
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map='auto', trust_remote_code=True)
@@ -104,15 +104,17 @@ if __name__ == '__main__':
         context_size = int(context_size)
         stride = None
     
+    # where is your model? use your path here.
+    # Set model_path = model_name if you want to download the model from huggingface
     model_path = os.path.join('/mnt/fast/nobackup/scratch4weeks/yl02706/models', model_name)
     model, tokenizer = load_model_and_tokenizer(model_path)
+
+    # resize buffer size for exllama, if gptq is used
     if getattr(model.config, 'quantization_config', None) is not None and model.config.quantization_config.use_exllama and model.config.quantization_config.desc_act:
         model = exllama_set_max_input_length(model, context_size*batch_size)
+        
     all_data, modality = prepare_data(data_name, save_path, tokenizer)
     print(f'Data {data_name}, Modality {modality}')
-
-    if 'qwen' in model_name.lower() and modality != 'text':
-        raise ValueError('Qwen do not support byte tokenization. So text data only.')
 
     for data in all_data:
         name, time = data.name, data.config
@@ -121,7 +123,7 @@ if __name__ == '__main__':
         data.prepare_batches(context_size, stride = stride)
         print(f'Total number of chunks: {data.metadata["num_chunks"]}')
 
-        metrics = Metrics(modality, save_path, model_name, byte2id=data.byte2ids if modality != 'text' else None, use_arithmetic_coding = False)
+        metrics = Metrics(modality, save_path, model_name, byte2id=data.byte2ids if modality != 'text' else None)
         
         for i, chunk in enumerate(tqdm(data.batches(batch_size))):
 
@@ -138,4 +140,3 @@ if __name__ == '__main__':
         print(f'==== Finished processing {name} {time}.======')
 
         metrics.clear_cache()
-
