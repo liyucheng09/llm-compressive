@@ -4,17 +4,14 @@ Compression is believed to be the key feature of intelligence. Llm-compressive a
 
 Llm-compressive tests LLMs with data compression on timeline, to understand how LLMs generalize over time.
 
-<img src="figs/7B-wikitext.png" alt="llm-compressive" width="450" align="center" margin="auto">
+<img src="figs/7B-wikitext.png" alt="llm-compressive" width="490" align="center" margin="auto">
 
 For example, llm-compressive test open source LLMs on wikipedia across 83 months from 2017 to 2023.
 
 **Mistral** and **Baichuan2** show steady performance across all time periods, indicating promissing generalization over time. In contrast, other models demonstrate linearly-worsen curves.
 
-This repo contains code and data for paper: [Evaluating Large Language Models for Generalization and Robustness via Data Compression
+More results on coding, arxiv, news, image, and audio in the paper: [Evaluating Large Language Models for Generalization and Robustness via Data Compression
 ](https://arxiv.org/pdf/2402.00861.pdf).
-
-Results about coding, arXiv papers, news, image, and audio to be found in the paper.
-
 
 # Getting Started
 
@@ -62,7 +59,7 @@ python visualise/big_table.py
 
 This will 1) generate the big table in the paper; 2) generate a figure showing the performance-robustness trade-off of models (like the figure below).
 
-<img src="figs/robustness_performance_Wikitext_7B.png" alt="performance-robustness" width="450" align="center" margin="auto">
+<img src="figs/robustness_performance_Wikitext_7B.png" alt="performance-robustness" width="490" align="center" margin="auto">
 
 see the explaination of the figure in the [paper](https://arxiv.org/pdf/2402.00861.pdf).
 
