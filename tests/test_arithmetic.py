@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, GPT2LMHeadModel, AutoModelForCausalLM
 import torch
-import torchac_ as torchac
+import arithmetic
 
 def pmf_to_cdf(pmf):
   cdf = pmf.cumsum(dim=-1)
@@ -37,19 +37,10 @@ cdf = cdf.detach().cpu()
 sym_32 = inputs['input_ids'].to(torch.int32).detach().cpu()
 sym_16 = inputs['input_ids'].to(torch.int16).detach().cpu()
 
-byte_stream_32 = torchac.encode_float_cdf(cdf, sym_32)
+byte_stream_32 = arithmetic.encode_float_cdf(cdf, sym_32)
 print(len(byte_stream_32))
 
-# byte_stream_16 = torchac.encode_float_cdf(cdf, sym_16, precision=16)
-# print(len(byte_stream_16))
-
-d = torchac.decode_float_cdf(cdf, byte_stream_32)
-# print(len(byte_stream_32))
+d = arithmetic.decode_float_cdf(cdf, byte_stream_32)
 print('=========================')
 
 assert sym_32.equal(d)
-
-# torchac.decode_float_cdf(cdf, byte_stream, sym)
-
-# # print(torchac.decode_float_cdf(cdf, byte_stream).shape)
-# # print(inputs['input_ids'].shape)

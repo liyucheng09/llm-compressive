@@ -1,5 +1,5 @@
 import torch
-import torchac_
+import arithmetic
 import png
 import os
 import gzip
@@ -26,7 +26,7 @@ def arithmetic_coding(pmf, sym, save_path = None):
     if sym.device.type != 'cpu':
         sym = sym.detach().cpu()
     
-    byte_stream = torchac_.encode_float_cdf(cdf, sym)
+    byte_stream = arithmetic.encode_float_cdf(cdf, sym)
     if save_path is not None:
         with open(save_path, 'wb') as f:
             f.write(byte_stream)

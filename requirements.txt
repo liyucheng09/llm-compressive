@@ -1,4 +1,8 @@
-torchac
 ninja
 transformers
 torch
+nltk
+datasets
+numpy
+pypng
+soundfile
