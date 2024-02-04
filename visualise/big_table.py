@@ -1,6 +1,11 @@
 import json
 import numpy as np
 
+do_latex = False
+do_plot = True
+task = 'Wikitext'
+fig_type = '7B'
+
 with open('results/wikitext_results_v2.json') as f:
     wiki_results = json.load(f)
 
@@ -159,11 +164,6 @@ for model_name, data in wiki_results.items():
     audio_results_ = compute_results(audio_results[model_name], model_name, 'Audio')
     models[model_name_]['Audio'] = audio_results_
 
-do_latex = True
-do_plot = False
-task = 'Code'
-fig_type = '7B'
-
 if do_latex:
     import pandas as pd
 
@@ -259,4 +259,4 @@ if do_plot:
     # plt.legend(loc='upper left', fontsize='small')
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f'results/robustness_performance_{task}_{fig_type}.png')
+    plt.savefig(f'figs/robustness_performance_{task}_{fig_type}.png')
