@@ -5,7 +5,7 @@ import plotly.express as px
 import plotly.offline as pyo
 import plotly.io as pio
 
-def exponential_smoothing(data, alpha = 0.5):
+def exponential_smoothing(data, alpha = 0.3):
     """
     Apply exponential smoothing to the data.
     :param data: List of data points.
@@ -39,7 +39,7 @@ base_model_name_to_label = {
     'LLaMA-65B': 'LLaMA-65B',
     'Yi-34B-200K': 'Yi-34B',
     'Qwen1.5-7B': 'Qwen1.5-7B',
-    'gemma-7B': 'Gemma-7B',
+    'gemma-7b': 'Gemma-7B',
 }
 
 long_context_models = [
@@ -123,9 +123,10 @@ if __name__ == "__main__":
     plot_df = plot_df.sort_values(by='Context Size')
     fig = go.Figure()
 
-    for i, model in enumerate(plot_df['Model']):
+    for i, model in enumerate(long_context_models):
         visible = "legendonly" if model in long_context_unselected_defaultly else True
-        fig.add_trace(go.Scatter(x=plot_df['Context Size'], y=plot_df['Average Performance'], mode='lines+markers', name=model, line=dict(dash=line_styles[i%len(line_styles)]),
+        fig.add_trace(go.Scatter(x=plot_df[plot_df['Model'] == model]['Context Size'], y=plot_df[plot_df['Model'] == model]['Average Performance'],
+                                mode='lines+markers', name=model, line=dict(dash=line_styles[i%len(line_styles)]),
                                 marker=dict(symbol=markers[i%len(markers)], size=4), visible=visible))
     fig.update_layout(title='Wikitext', xaxis_title='Context Size', yaxis_title='Compression Ratio (%, across all times)', xaxis_fixedrange=True, yaxis_fixedrange=True)
     fig.update_xaxes(
