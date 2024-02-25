@@ -1,8 +1,8 @@
 import json
 import numpy as np
 
-do_latex = False
-do_plot = True
+do_latex = True
+do_plot = False
 task = 'Wikitext'
 fig_type = '7B'
 
