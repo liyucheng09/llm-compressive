@@ -4,7 +4,7 @@ Compression is believed to be the key feature of intelligence. Llm-compressive a
 
 Llm-compressive tests LLMs with data compression on timeline, to understand how LLMs generalize over time.
 
-<img src="figs/7B-wikitext.png" alt="llm-compressive" width="490" align="center" margin="auto">
+<img src="figs/7B-wikitext.png" alt="llm-compressive" width="490" align="center">
 
 For example, llm-compressive test open source LLMs on wikipedia across 83 months from 2017 to 2023.
 

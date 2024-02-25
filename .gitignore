@@ -1,0 +1,5 @@
+htcondor/
+__pycache__/
+.vscode/
+*.json
+!results/*.json

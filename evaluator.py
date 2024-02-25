@@ -28,7 +28,8 @@ class Metrics:
             'compressed_size': Metrics._compressed_size,
             'context_size': Metrics._context_size,
             'stride': Metrics._stride,
-            'batches': Metrics._num_chunks
+            'batches': Metrics._num_chunks,
+            'time_used': Metrics._time_used,
         }
         self.modality = modality
         if modality == 'text':
@@ -49,6 +50,10 @@ class Metrics:
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         
+        if '/' in model_name:
+            model_name = model_name.split('/')[-1]
+        if metadata['context_size'] != 2048:
+            model_name += f'-{metadata["context_size"]}'
         # check whether baselines have been computed before
         for baseline in self.baselines:
             baseline_result_path = os.path.join(save_dir, baseline + '.json')
@@ -102,12 +107,15 @@ class Metrics:
         elif stride is not None:
             pmf = pmf[:, -stride:, :]
             sym = sym[:, -stride:]
-        self.self_info_cache += -torch.log2(pmf[:, :-1, :]).gather(dim=-1, index=sym[:, 1:].unsqueeze(-1)).sum().item()
+        pmf = torch.clamp(pmf, min=1e-32)
+        self_info = -torch.log2(pmf[:, :-1, :]).gather(dim=-1, index=sym[:, 1:].unsqueeze(-1)).squeeze(-1)
+        self.self_info_cache += self_info.sum().item()
     
     def clear_cache(self):
         self.arithmetic_coding_cache = b''
         self.self_info_cache = 0
     
+    @torch.no_grad()
     def step(self, logits, sym, stride = None):
         # if logits in dtype torch.float16, torch.bfloat16, then is it very important to convert it to torch.float32
         if logits.dtype in [torch.float16, torch.bfloat16]:
@@ -125,6 +133,7 @@ class Metrics:
             sym=new_sym.view(sym.shape)
         else:
             pmf = torch.softmax(logits, dim=-1)
+            del logits
 
         if self.use_arithmetic_coding:
             self._cache_arithmetic_coding(pmf, sym.to(torch.int32), stride = stride)
@@ -178,6 +187,11 @@ class Metrics:
     def _num_chunks(compressed_size, metadata):
         # number of chunks
         return metadata['num_chunks']
+
+    @staticmethod
+    def _time_used(compressed_size, metadata):
+        # time used
+        return metadata['time_used']
 
     def _compute_metrics(self, compressed_size, metadata):
         metrics = {}

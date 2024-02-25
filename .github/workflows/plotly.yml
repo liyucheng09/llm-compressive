@@ -31,5 +31,5 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "LLM-Compressive Action"
         git add -A
-        git commit -m "Automatically generated files" -a || echo "No changes to commit"
+        git commit -m "Automatically generated plotly visualizations" -a || echo "No changes to commit"
         git push

@@ -16,7 +16,7 @@ def set_global_tokenizer(tokenizer):
     global_tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True, trust_remote_code=True)
 
 class BaseProcessor:
-    def __init__(self, name, modality, load_path, cache_path, tokenizer, config, total_size=2**24, chunk_size=2**11):
+    def __init__(self, name, modality, load_path, cache_path, tokenizer, config, total_size=2**23, chunk_size=2**11):
         # total_size: the full size of the data to be compressed
         # chunk_size: the size of each chunk.
         #             default 2048, according to most LLMs' context size. 
@@ -186,7 +186,7 @@ class TextProcessor(BaseProcessor):
         self.all_text = ''.join(sents)
         self.stream = self.all_text.encode('utf-8')
 
-        if self.name == 'code' or self.name == 'arxiv':
+        if self.name in ['code', 'arxiv', 'math']:
             chunk_size = 1
         else:
             chunk_size = 100
@@ -214,7 +214,13 @@ class TextProcessor(BaseProcessor):
 
         if stride is None:
             # now we chunk the long input_ids into batches
-            chunks = [input_ids[i:i+context_size] for i in range(0, len(input_ids), context_size)]
+            if self.tokenizer.bos_token_id is not None:
+                max_length = context_size - 1
+            else:
+                max_length = context_size
+            chunks = [input_ids[i:i+max_length] for i in range(0, len(input_ids), context_size)]
+            if self.tokenizer.bos_token_id is not None:
+                chunks = [[self.tokenizer.bos_token_id] + chunk for chunk in chunks]
             last_chunk = chunks[-1]
             chunks = chunks[:-1]
 
@@ -321,6 +327,17 @@ class ArxivProcessor(TextProcessor):
         if not sections:
             return None
         return sections
+    
+class MathProcessor(TextProcessor):
+    def _load_dataset(self, max_num_questions = 500):
+        ds = datasets.load_dataset(self.load_path, self.config, split='train')
+        all_sents = []
+        max_num_questions = min(max_num_questions, len(ds))
+        ds = ds.select(range(max_num_questions))
+        for qa in ds:
+            text = qa['verbolised']
+            all_sents.append(text)
+        self.sents = all_sents
 
 class BBCImageProcessor(MultiModalProcessor):
 
