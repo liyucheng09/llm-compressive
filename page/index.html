@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Project</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+        .title {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 10px;
+        }
+        .name {
+            font-family: 'Lato', Verdana, Helvetica, sans-serif;
+            font-size: 30px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .abstract, .authors {
+            margin-bottom: 15px;
+            font-size: 15px;
+        }
+        .abstract-title, .authors-title {
+            font-weight: bold;
+            font-size: 20px;
+        }
+        li,
+        p {
+            font-size: 16px;
+            font-family: 'Lato', Verdana, Helvetica, sans-serif;
+        }
+        a {
+            color: #1772d0;
+            text-decoration: none;
+        }
+
+        a:focus,
+        a:hover {
+            color: #f09228;
+            text-decoration: none;
+        }
+            
+    </style>
+</head>
+<body>
+
+<div class="name">
+    <strong>LLM-Compressive:</strong> <br> Longitudinal Evaluation of LLMs via Data Compression
+</div>
+
+<div>
+    <p align=center>
+        <a href="https://arxiv.org/abs/2402.00861">Paper</a> &nbsp/&nbsp
+        <a href="https://github.com/liyucheng09/llm-compressive"> Code </a> &nbsp/&nbsp
+        <a href="https://zhuanlan.zhihu.com/p/681449063"> 知乎 </a>
+      </p>
+</div>
+
+
+<div class="authors">
+    <p class="authors-title" style="font-size: 15px">Outline</p>
+    <ol>
+        <li>Intro</li>
+        <li>Issue</li>
+        <li>Benchmark Performance</li>
+        <li>Context Length Performance</li>
+    </ol>
+</div>
+
+<hr>
+
+<div class="abstract">
+    <p class="abstract-title">1. Intro:</p>
+    LLM-Compressive evaluates LLMs via data compression on data collected every month from 2017 to 2024.
+    <br>
+    <br>
+    We currently have sources include <strong> Code, Wikipedia, Math, arXiv, BBC News, Images, and Audio </strong>.
+    <br>
+    <br>
+    All y-axis represent compression ratio (%, <strong>lower is better</strong>). Models maintain a constant compression ratio over time demonstrate <strong>good generalization</strong>, while models that degrade over time demonstrate <strong>overfitting.</strong>
+</div>
+
+<div class="abstract">
+    <p class="abstract-title">2. Issue:</p>
+    If you have problems or want to request results of a new model, please head to our <a href="https://github.com/liyucheng09/llm-compressive">project</a> page and open an issue.
+</div>
+
+<div class="abstract">
+    <p class="abstract-title">3. Benchmark Performance:</p>
+</div>
+
+<iframe src="wikitext.html" width="1000" height="600"></iframe>
+<iframe src="code.html" width="1000" height="600"></iframe>
+<iframe src="math.html" width="1000" height="600"></iframe>
+<iframe src="arxiv.html" width="1000" height="600"></iframe>
+<iframe src="bbc.html" width="1000" height="600"></iframe>
+
+<div class="abstract">
+    <p class="abstract-title">4. Context Length Performance:</p>
+</div>
+
+<iframe src="context_length.html" width="1000" height="600"></iframe>
+
+</body>
+</html>
