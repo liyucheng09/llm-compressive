@@ -5,6 +5,24 @@ import plotly.express as px
 import plotly.offline as pyo
 import plotly.io as pio
 
+def exponential_smoothing(data, alpha = 0.5):
+    """
+    Apply exponential smoothing to the data.
+    :param data: List of data points.
+    :param alpha: Smoothing factor, between 0 and 1.
+    :return: List of smoothed data points.
+    """
+    smoothed_data = []
+    for i, point in enumerate(data):
+        if i == 0:
+            # The first smoothed value is the first data point.
+            smoothed_data.append(point)
+        else:
+            # Compute the smoothed value.
+            new_smoothed = alpha * point + (1 - alpha) * smoothed_data[i-1]
+            smoothed_data.append(new_smoothed)
+    return smoothed_data
+
 base_model_name_to_label = {
     'Baichuan2-7B-Base': 'Baichuan2-7B',
     'internlm-7B': 'Internlm-7B',
@@ -75,7 +93,11 @@ if __name__ == "__main__":
             visible = "legendonly" if model in unselected_defaultly else True
             if 'codellama' in model.lower() and task in ['code', 'math', 'bbc_image']:
                 visible = True
-            fig.add_trace(go.Scatter(x=df.index, y=df[model], mode='lines+markers', name=model, line=dict(dash=line_styles[i%len(line_styles)]),
+            if task != 'wikitext':
+                y = exponential_smoothing(df[model])
+            else:
+                y = df[model]
+            fig.add_trace(go.Scatter(x=df.index, y=y, mode='lines+markers', name=model, line=dict(dash=line_styles[i%len(line_styles)]),
                                     marker=dict(symbol=markers[i%len(markers)], size=4), visible=visible))
 
         fig.update_layout(title=task, xaxis_title='Date', yaxis_title='Compression Ratio', xaxis_fixedrange=True, yaxis_fixedrange=True)
