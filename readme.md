@@ -30,7 +30,7 @@ python main.py <model_name> <dataset_name> <save_path> <context_size> <batch_siz
 ```
 
 - `model_name`: the name of the model from HF Hub. See supported [models](#models).
-- `dataset_name`: the name of the dataset. choose from `wikitext`, `bbc_news`, `code`, `arxiv`, `audio`, `bbc_image`.
+- `dataset_name`: the name of the dataset. choose from `wikitext`, `math`, `bbc_news`, `code`, `arxiv`, `audio`, `bbc_image`.
 - `save_path`: the path to save the results.
 - `context_size`: the context size used for compression. choose from `2048`, `4096`, `8192`, `max_length`, or `stride`.
 - `batch_size`: the batch size. This depends on the model scale and your GPU memory.
@@ -80,6 +80,8 @@ We have tested the following models:
 - THUDM/chatglm3-6b-base
 - 01-ai/Yi-6B-200K
 - 01-ai/Yi-34B-200K
+- google/gemma-7b
+- Qwen/Qwen1.5-7B
 
 And any GPTQ version of the above models, such as:
 
