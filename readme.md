@@ -13,6 +13,9 @@ For example, llm-compressive test open source LLMs on wikipedia across 83 months
 More results on coding, arxiv, news, image, and audio in the paper: [Evaluating Large Language Models for Generalization and Robustness via Data Compression
 ](https://arxiv.org/pdf/2402.00861.pdf).
 
+**Updates**:
+- 27 Feb 2024, try the interactive leaderboard at [LLM-Compressive](https://liyucheng09.github.io/llm-compressive/).
+
 # Getting Started
 
 0. Clone and install requirements.
