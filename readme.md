@@ -1,4 +1,4 @@
-# LLM-Compressive: evaluate LLMs with Data Compression
+# LLM-Compressive: Longitudinal Evaluation of LLMs via Data Compression
 
 Compression is believed to be the key feature of intelligence. Llm-compressive allows you to evaluate Large Language Models (LLMs) for generalization and robustness via **data compression**.
 
