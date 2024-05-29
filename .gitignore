@@ -2,4 +2,7 @@ htcondor/
 __pycache__/
 .vscode/
 *.json
+*.jsonl
 !results/*.json
+real_tasks/*.json
+outputs/*
